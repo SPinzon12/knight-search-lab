@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- Deliberate mirror of knight_wave.py: same five algorithms, same contract
+     (dist, parent, order, path). Change one, change the other. -->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knight Wave — BFS Visualizer</title>
+<style>
+  :root{
+    --bg:#12081f; --panel:#1d0f33; --line:#4a2b7a;
+    --ink:#e9e4cf; --dim:#a89bc9; --hot:#00e5ff; --red:#ff2ea6;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"Courier New",monospace;
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    padding:24px;
+  }
+  body::after{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:5;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 2px, transparent 2px 4px);
+  }
+  #stage{display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap; justify-content:center}
+
+  #board{
+    display:grid; grid-template-columns:repeat(8,1fr);
+    width:min(72vmin,560px); aspect-ratio:1;
+    border:4px solid var(--line); box-shadow:8px 8px 0 #000;
+    position:relative; user-select:none;
+  }
+  .sq{position:relative; cursor:pointer; display:flex; align-items:center; justify-content:center}
+  .sq.d{background:#1a0d2e}
+  .sq.l{background:#2a1650}
+  .sq::after{
+    content:attr(data-sq); position:absolute; left:2px; top:1px;
+    font-size:8px; opacity:.3; letter-spacing:0;
+  }
+  .sq .n{position:absolute; font-size:min(3vmin,15px); font-weight:bold;
+    color:#fff; text-shadow:1px 1px 0 #000; pointer-events:none}
+  .sq.st{outline:3px solid var(--hot); outline-offset:-3px}
+  .sq.tg{outline:3px solid var(--red); outline-offset:-3px}
+  .sq.path{outline:3px solid #fff; outline-offset:-3px; animation:blink .5s steps(2) infinite}
+  /* once the full path is known, fade everything else so the route pops */
+  #board.done .sq{opacity:.3; transition:opacity .35s}
+  #board.done .sq.path{opacity:1}
+  @keyframes blink{50%{outline-color:#ffd}}
+  #knight{
+    position:absolute; left:0; top:0; width:12.5%; height:12.5%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:min(5vmin,34px); color:#fff; text-shadow:2px 2px 0 #000;
+    pointer-events:none; transition:transform .25s steps(5);
+  }
+  #knight svg{width:100%; height:100%; filter:drop-shadow(2px 2px 0 rgba(0,0,0,.55))}
+
+  #hud{
+    background:var(--panel); border:4px solid var(--line);
+    box-shadow:8px 8px 0 #000; padding:18px 20px; width:300px;
+  }
+  h1{font-size:22px; letter-spacing:4px; color:var(--hot)}
+  #hud .sub{color:var(--dim); font-size:11px; letter-spacing:2px; margin-bottom:14px}
+  #hint{font-size:12px; color:#ffe600; min-height:32px; margin-bottom:12px; line-height:1.5}
+  .btns{display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap}
+  button{
+    font-family:inherit; font-size:12px; font-weight:bold; letter-spacing:1px;
+    background:#23234a; color:var(--ink); border:2px solid var(--line);
+    padding:8px 10px; cursor:pointer; box-shadow:3px 3px 0 #000;
+  }
+  button:hover:not(:disabled){background:#2f2f66}
+  button:active:not(:disabled){transform:translate(2px,2px); box-shadow:1px 1px 0 #000}
+  button:disabled{opacity:.4; cursor:default}
+  #btn-run{background:#0b2b3a; border-color:#00a8c0; color:#7df3ff}
+  .algos{display:flex; align-items:center; gap:8px; margin-bottom:14px}
+  .algos label{font-size:11px; letter-spacing:2px; color:var(--dim)}
+  .algos select{
+    flex:1; font-family:inherit; font-size:12px; font-weight:bold; letter-spacing:1px;
+    background:#23234a; color:var(--ink); border:2px solid var(--line); padding:8px 10px;
+  }
+  .stats{border-top:2px dashed var(--line); padding-top:12px}
+  .stats div{display:flex; justify-content:space-between; font-size:13px; padding:4px 0}
+  .stats span{color:var(--dim); letter-spacing:2px}
+  .stats b{color:#7ddff0}
+  #path-display{
+    margin-top:12px; font-size:12px; color:#ff2ea6; line-height:1.6;
+    border-top:2px dashed var(--line); padding-top:12px; word-break:break-all;
+    min-height:40px;
+  }
+  #legend{display:flex; gap:4px; margin-top:14px}
+  #legend i{flex:1; height:14px; position:relative}
+  #legend i::after{
+    content:attr(data-d); position:absolute; inset:0; text-align:center;
+    font-size:9px; font-style:normal; font-weight:bold; line-height:14px;
+    color:#fff; text-shadow:0 0 2px #000, 1px 1px 0 #000;
+  }
+  #compare{margin-top:14px; border-top:2px dashed var(--line); padding-top:10px}
+  #compare table{width:100%; border-collapse:collapse; font-size:11px}
+  #compare th{
+    color:var(--dim); font-size:10px; letter-spacing:1px; text-align:right;
+    padding:3px 2px; border-bottom:1px solid var(--line);
+  }
+  #compare th:first-child{text-align:left}
+  #compare td{padding:3px 2px; text-align:right; border-bottom:1px dashed #2c1b4d}
+  #compare td:first-child{text-align:left; color:#7df3ff; font-weight:bold}
+  #compare td.opt{color:#a4ff00; font-weight:bold}
+  #compare td.bar{position:relative; padding-right:6px}
+  #compare td.bar span{position:absolute; left:0; top:2px; bottom:2px;
+    background:rgba(0,229,255,.22); border-right:2px solid var(--hot)}
+  #compare td.bar b{position:relative; font-weight:normal}
+  #explain{
+    margin-top:14px; font-size:11px; line-height:1.55; color:var(--dim);
+    border-left:3px solid var(--hot); padding:2px 0 2px 8px; min-height:74px;
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="board" aria-label="chessboard"></div>
+  <aside id="hud">
+    <h1>KNIGHT WAVE</h1>
+    <p class="sub">BFS PATH VISUALIZER</p>
+    <p id="hint">Pick the START square.</p>
+    <div class="btns">
+      <button id="btn-run" disabled>RUN</button>
+      <button id="btn-reset">RESET</button>
+      <button id="btn-random">RANDOM</button>
+      <button id="btn-compare">COMPARE</button>
+    </div>
+    <div class="algos">
+      <label for="algo">ALGO</label>
+      <select id="algo">
+        <option>BFS</option>
+        <option>DFS</option>
+        <option>A*</option>
+        <option>GREEDY</option>
+        <option>BI-BFS</option>
+      </select>
+    </div>
+    <div class="stats">
+      <div><span>STEP</span><b id="status-step">&#8212;</b></div>
+      <div><span>VISITED</span><b id="status-visited">0</b></div>
+      <div><span>PATH</span><b id="status-path">&#8212;</b></div>
+    </div>
+    <div id="path-display">&#8212;</div>
+    <div id="legend"></div>
+    <div id="explain"></div>
+    <div id="compare"></div>
+  </aside>
+</div>
+
+<script id="bfs-logic">
+var MOVES = [[2,1],[1,2],[-1,2],[-2,1],[-2,-1],[-1,-2],[1,-2],[2,-1]];
+
+function idxOf(r, c){ return r * 8 + c; }
+function rcOf(i){ return [i >> 3, i & 7]; }
+function inB(r, c){ return r >= 0 && r < 8 && c >= 0 && c < 8; }
+function coordOf(i){ var p = rcOf(i); return 'abcdefgh'[p[1]] + (p[0] + 1); }
+
+// Pure BFS wave: returns {dist, parent, order} — order is discovery sequence.
+function bfs(start, target){
+  var dist = {}, parent = {}, order = [];
+  dist[start] = 0; parent[start] = -1; order.push(start);
+  var q = [start], h = 0;
+  while (h < q.length){
+    var cur = q[h++], d = dist[cur], p = rcOf(cur);
+    for (var k = 0; k < MOVES.length; k++){
+      var r = p[0] + MOVES[k][0], c = p[1] + MOVES[k][1];
+      if (!inB(r, c)) continue;
+      var n = idxOf(r, c);
+      if (dist[n] !== undefined) continue;
+      dist[n] = d + 1; parent[n] = cur; order.push(n); q.push(n);
+    }
+    if (cur === target) break;   // wave stops as soon as the target is expanded
+  }
+  // start/target are drawn as S/T by the renderer, so they never enter the
+  // animation order — keeps every algorithm's order comparable.
+  order = order.filter(function(x){ return x !== start && x !== target; });
+  return { dist: dist, parent: parent, order: order };
+}
+
+function shortestPath(parent, start, target){
+  var path = [], cur = target;
+  while (cur !== undefined && cur !== -1){ path.push(cur); if (cur === start) break; cur = parent[cur]; }
+  path.reverse();
+  return path[0] === start ? path : [];
+}
+
+// Admissible AND consistent lower bound on knight distance: a knight covers at
+// most 2 files/ranks and 3 (dx+dy) per move, so neither term can overshoot.
+function hOf(a, b){
+  var pa = rcOf(a), pb = rcOf(b);
+  var dr = Math.abs(pa[0] - pb[0]), dc = Math.abs(pa[1] - pb[1]);
+  return Math.max(Math.ceil(Math.max(dr, dc) / 2), Math.ceil((dr + dc) / 3));
+}
+
+// One skeleton, five frontier policies — same {dist, parent, order} contract as bfs.
+// dist = depth of first discovery (tree depth), order = expansion sequence
+// (start and target excluded: the renderer already draws those squares itself).
+function search(start, target, pickIdx){
+  var dist = {}, parent = {}, order = [], done = {};
+  dist[start] = 0; parent[start] = -1;
+  var open = [start];
+  while (open.length){
+    var cur = open.splice(pickIdx(open, dist, target), 1)[0];
+    if (done[cur]) continue;
+    done[cur] = true;
+    if (cur !== start && cur !== target) order.push(cur);
+    if (cur === target) break;
+    var p = rcOf(cur), d = dist[cur];
+    for (var k = 0; k < MOVES.length; k++){
+      var r = p[0] + MOVES[k][0], c = p[1] + MOVES[k][1];
+      if (!inB(r, c)) continue;
+      var n = idxOf(r, c);
+      if (done[n]) continue;
+      var nd = d + 1;
+      if (dist[n] === undefined || nd < dist[n]){
+        dist[n] = nd; parent[n] = cur;
+        if (open.indexOf(n) < 0) open.push(n);        // A* can improve an open node
+      }
+    }
+  }
+  return { dist: dist, parent: parent, order: order };
+}
+
+function pickFIFO(){ return 0; }                                     // BFS
+function pickLIFO(o){ return o.length - 1; }                         // DFS
+function pickGreedy(o, dist, t){                                     // best-first by h only
+  var bi = 0, bv = hOf(o[0], t);
+  for (var i = 1; i < o.length; i++){ var v = hOf(o[i], t); if (v < bv){ bv = v; bi = i; } }
+  return bi;
+}
+function pickAstar(o, dist, t){                                      // best-first by g + h
+  var bi = 0, bv = dist[o[0]] + hOf(o[0], t);
+  for (var i = 1; i < o.length; i++){ var v = dist[o[i]] + hOf(o[i], t); if (v < bv){ bv = v; bi = i; } }
+  return bi;
+}
+
+// Bidirectional BFS: two waves from both ends, expanding the smaller frontier
+// until they touch. dist shows each square's own wave depth (two-colour wave),
+// path is stitched across the meeting link and returned explicitly.
+function biBfs(start, target){
+  var d = [{}, {}], par = [{}, {}], seen = [{}, {}], open = [[start], [target]], order = [];
+  d[0][start] = 0; par[0][start] = -1; seen[0][start] = 1;
+  d[1][target] = 0; par[1][target] = -1; seen[1][target] = 1;
+  var link = null;
+  while (link === null && open[0].length && open[1].length){
+    var s = open[0].length <= open[1].length ? 0 : 1, o = 1 - s;
+    var cur = open[s].shift();
+    if (cur !== start && cur !== target) order.push(cur);
+    if (d[o][cur] !== undefined){ link = cur; break; }                // met on this square
+    var p = rcOf(cur), dd = d[s][cur];
+    for (var k = 0; k < MOVES.length; k++){
+      var r = p[0] + MOVES[k][0], c = p[1] + MOVES[k][1];
+      if (!inB(r, c)) continue;
+      var n = idxOf(r, c);
+      if (seen[s][n]) continue;
+      if (d[o][n] !== undefined){ link = [cur, n]; break; }           // met on the edge
+      seen[s][n] = 1; d[s][n] = dd + 1; par[s][n] = cur; open[s].push(n);
+    }
+  }
+  var dist = {}, z;
+  for (z in d[0]) dist[z] = d[0][z];
+  for (z in d[1]) if (dist[z] === undefined) dist[z] = d[1][z];       // start-side depth wins
+  var path = [];
+  if (link !== null){
+    var u = typeof link === 'number' ? link : link[0];
+    var v = typeof link === 'number' ? link : link[1];
+    var x = d[0][u] !== undefined ? u : v, y = u === x ? v : u;       // x: start side, y: target side
+    var a = [], c2 = x;
+    while (c2 !== undefined && c2 !== -1){ a.push(c2); c2 = par[0][c2]; }
+    a.reverse();                                                      // start ... x
+    var b = [], e = y;
+    while (e !== undefined && e !== -1){ b.push(e); e = par[1][e]; }   // y ... target
+    path = x === y ? a.concat(b.slice(1)) : a.concat(b);
+  }
+  var parent = {};
+  if (path.length){
+    parent[start] = -1;
+    for (var i = 1; i < path.length; i++) parent[path[i]] = path[i - 1];
+  }
+  return { dist: dist, parent: parent, order: order, path: path };
+}
+
+var ALGOS = {
+  'BFS':     function(s, t){ return search(s, t, pickFIFO); },
+  'DFS':     function(s, t){ return search(s, t, pickLIFO); },
+  'A*':      function(s, t){ return search(s, t, pickAstar); },
+  'GREEDY':  function(s, t){ return search(s, t, pickGreedy); },
+  'BI-BFS':  biBfs
+};
+
+(function selfcheck(){
+  function ok(c, m){ if (!c) throw new Error('bfs-logic selfcheck failed: ' + m); }
+
+  var a1 = 0, h8 = idxOf(7, 7);                       // a1 = (0,0), h8 = (7,7)
+  var r1 = bfs(a1, h8);
+  ok(r1.dist[h8] === 6, 'a1->h8 distance is 6, got ' + r1.dist[h8]);
+
+  ok(bfs(a1, a1).dist[a1] === 0, 'same square distance 0');
+
+  // monotonicity: no neighbor is ever discovered more than one step deeper
+  var ks = Object.keys(r1.dist);
+  for (var i = 0; i < ks.length; i++){
+    var s = +ks[i], p = rcOf(s);
+    for (var k = 0; k < MOVES.length; k++){
+      var r = p[0] + MOVES[k][0], c = p[1] + MOVES[k][1];
+      if (!inB(r, c)) continue;
+      var n = idxOf(r, c);
+      ok(r1.dist[n] <= r1.dist[s] + 1, 'monotonic at ' + s + '->' + n);
+    }
+  }
+
+  var path = shortestPath(r1.parent, a1, h8);
+  ok(path.length === 7, 'a1->h8 path has 7 squares, got ' + path.length);
+  for (var j = 1; j < path.length; j++){
+    var a = rcOf(path[j - 1]), b = rcOf(path[j]);
+    var dr = Math.abs(a[0] - b[0]), dc = Math.abs(a[1] - b[1]);
+    ok((dr === 2 && dc === 1) || (dr === 1 && dc === 2), 'hop ' + path[j-1] + '->' + path[j] + ' not a knight move');
+  }
+
+  ok(r1.order.length === 62 && r1.dist[h8] !== undefined,
+     'wave reaches every square minus start/target, got ' + r1.order.length);
+
+  // every algorithm: reaches the target, emits a valid knight path, no dupes
+  function validPath(p, s, t){
+    if (!p.length || p[0] !== s || p[p.length - 1] !== t) return false;
+    for (var j = 1; j < p.length; j++){
+      var a = rcOf(p[j - 1]), b = rcOf(p[j]);
+      var dr = Math.abs(a[0] - b[0]), dc = Math.abs(a[1] - b[1]);
+      if (!((dr === 2 && dc === 1) || (dr === 1 && dc === 2))) return false;
+    }
+    return true;
+  }
+  for (var name in ALGOS){
+    var res = ALGOS[name](a1, h8);
+    ok(res.dist[h8] !== undefined, name + ' reaches h8');
+    var pp = res.path || shortestPath(res.parent, a1, h8);
+    ok(validPath(pp, a1, h8), name + ' path is a chain of knight hops a1->h8');
+    ok(res.order.length === new Set(res.order).size, name + ' order has no duplicates');
+    ok(res.order.indexOf(a1) < 0 && res.order.indexOf(h8) < 0,
+       name + ' order leaves start/target to the renderer');
+    ok(pp.length - 1 >= 6, name + ' cannot beat the 6-move optimum');
+    if (name === 'A*' || name === 'BI-BFS' || name === 'BFS')
+      ok(pp.length - 1 === 6, name + ' must find the 6-move path, got ' + (pp.length - 1));
+    if (name === 'A*')
+      ok(res.dist[h8] === 6, 'A* settles h8 at true depth 6, got ' + res.dist[h8]);
+  }
+  ok(ALGOS['A*'](a1, h8).order.length <= r1.order.length, 'A* expands no more than BFS');
+  ok(ALGOS['DFS'](a1, a1).order.length === 0, 'start === target visits nothing');
+  ok(ALGOS['BI-BFS'](a1, a1).path.length === 1, 'bi-BFS start === target path is itself');
+
+  if (typeof console !== 'undefined') console.log('bfs-logic selfcheck: ok');
+})();
+</script>
+
+<script>
+(function(){
+  var LEVELS = ['#d6f6ff','#00e5ff','#7b2fff','#ff2ea6','#ff4d6d','#a4ff00','#ffe600','#ff9e00'];
+  var LIGHT_BG = [1,0,0,0,0,1,1,1];                  // dark distance text on light fills
+  var board = document.getElementById('board');
+  var btnRun = document.getElementById('btn-run');
+  var elStep = document.getElementById('status-step');
+  var elVis = document.getElementById('status-visited');
+  var elPath = document.getElementById('status-path');
+  var elPathTxt = document.getElementById('path-display');
+  var hint = document.getElementById('hint');
+  var selAlgo = document.getElementById('algo');
+  var elCompare = document.getElementById('compare');
+  // algorithms that are guaranteed to return a shortest path
+  var OPTIMAL = { 'BFS': 1, 'A*': 1, 'BI-BFS': 1 };
+
+  // one short lesson per algorithm — shown under the selector
+  var NOTES = {
+    'BFS': 'Breadth-first: the frontier is a queue (FIFO), so every square at ' +
+           'distance d expands before any square at d+1 — a wave by levels. ' +
+           'Guarantees the SHORTEST path; the price is touching every reachable ' +
+           'square first.',
+    'DFS': 'Depth-first: the frontier is a stack (LIFO), so it dives down the ' +
+           'most recent branch as far as it can. Visits few squares and uses ' +
+           'little memory, but it wanders — the path it returns can be much ' +
+           'longer than optimal. No guarantees.',
+    'A*':  'A* orders the frontier by f = g + h: moves already spent plus an ' +
+           'estimate of the moves left. With an admissible heuristic it STILL ' +
+           'guarantees the shortest path, while skipping most of the board.',
+    'GREEDY': 'Greedy / best-first: looks only at h, how promising the square ' +
+              'looks, and ignores what the path already cost. Usually the fewest ' +
+              'expansions and often a good route — but nothing is guaranteed.',
+    'BI-BFS': 'Bidirectional BFS: two waves, one from each end, always expanding ' +
+              'the smaller frontier until they touch. Same optimal guarantee as ' +
+              'BFS with a fraction of the expansions.'
+  };
+  var elExplain = document.getElementById('explain');
+  function showNote(){ elExplain.textContent = NOTES[selAlgo.value] || ''; }
+  selAlgo.addEventListener('change', showNote);
+  showNote();
+
+  var cells = [], start = -1, target = -1, animating = false, timer = null;
+
+  // build board visually top-down: rank 8 first, rank 1 last
+  for (var r = 7; r >= 0; r--){
+    for (var c = 0; c < 8; c++){
+      (function(i){
+        var el = document.createElement('div');
+        el.className = 'sq ' + ((((i >> 3) + (i & 7)) % 2) ? 'l' : 'd');
+        el.setAttribute('data-sq', coordOf(i));
+        var n = document.createElement('span'); n.className = 'n';
+        el.appendChild(n);
+        el.addEventListener('click', function(){ onSquare(i); });
+        board.appendChild(el);
+        cells[i] = el;
+      })(idxOf(r, c));
+    }
+  }
+  // knight piece = inline copy of Downloads/knight-logo-minimal.svg (c2pa metadata
+  // stripped, no external asset). White stroke halo so it reads on dark AND light
+  // squares, since cells recolor by distance during the wave.
+  var KNIGHT_SVG =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="72 44 344 422" role="img" aria-label="Knight piece">' +
+    '<g fill="#0F1B33" stroke="#ffffff" stroke-width="28" stroke-linejoin="round">' +
+      '<path fill-rule="evenodd" d="M92 260 L170 170 L206 124 L228 64 L262 108 L250 204 L218 306 L168 298 L110 298 Z M188 180 L238 164 L224 198 Z"/>' +
+      '<path d="M274 114 L340 166 L314 200 L382 252 L346 294 L372 400 L150 400 L172 344 L222 322 L234 312 L262 206 Z"/>' +
+      '<rect x="116" y="414" width="280" height="32"/>' +
+    '</g></svg>';
+
+  if (KNIGHT_SVG.indexOf('<metadata') > -1) throw new Error('knight svg: metadata not stripped');
+  if (KNIGHT_SVG.indexOf('viewBox="72 44 344 422"') < 0) throw new Error('knight svg: bad viewBox');
+  if ((KNIGHT_SVG.match(/<path/g) || []).length !== 2) throw new Error('knight svg: expected 2 paths');
+
+  var knight = document.createElement('div');
+  knight.id = 'knight'; knight.innerHTML = KNIGHT_SVG; knight.style.display = 'none';
+  board.appendChild(knight);
+
+  var legend = document.getElementById('legend');
+  for (var d = 0; d < LEVELS.length; d++){
+    var sw = document.createElement('i');
+    sw.style.background = LEVELS[d]; sw.setAttribute('data-d', d);
+    legend.appendChild(sw);
+  }
+
+  function setHint(t){ hint.textContent = t; }
+  function clearSel(){
+    cells.forEach(function(el){ el.classList.remove('st', 'tg'); });
+  }
+  function pick(i, cls){ clearSel(); cells[i].classList.add(cls); }
+
+  function onSquare(i){
+    if (animating) return;
+    clearLits();
+    if (start === -1){
+      clearSel(); start = i; cells[i].classList.add('st');
+      setHint('Pick the TARGET square.');
+    } else if (target === -1 && i !== start){
+      target = i; cells[i].classList.add('tg');      // keep the start outline
+      setHint('Ready — press RUN.');
+    } else {
+      clearSel(); start = i; target = -1; cells[i].classList.add('st');
+      setHint('Pick the TARGET square.');
+    }
+    btnRun.disabled = !(start > -1 && target > -1);
+  }
+
+  function clearLits(){
+    for (var i = 0; i < 64; i++){
+      var el = cells[i];
+      el.classList.remove('lit', 'path');
+      el.style.background = '';
+      el.firstChild.textContent = '';
+    }
+    board.classList.remove('done');
+    knight.style.display = 'none';
+    elStep.textContent = '\u2014'; elVis.textContent = '0';
+    elPath.textContent = '\u2014'; elPathTxt.textContent = '\u2014';
+  }
+
+  function reset(){
+    if (timer) clearTimeout(timer);
+    timer = null; animating = false;
+    start = -1; target = -1;
+    clearSel(); clearLits();
+    elCompare.innerHTML = '';                          // report belongs to the old pair
+    btnRun.disabled = true;
+    document.getElementById('btn-random').disabled = false;
+    setHint('Pick the START square.');
+  }
+
+  function placeKnight(i){
+    var p = rcOf(i);
+    knight.style.transform = 'translate(' + (p[1] * 100) + '%,' + ((7 - p[0]) * 100) + '%)';
+  }
+
+  function run(){
+    if (animating || start < 0 || target < 0) return;
+    animating = true;
+    btnRun.disabled = true;
+    document.getElementById('btn-random').disabled = true;
+    clearSel(); clearLits();
+
+    var res = ALGOS[selAlgo.value](start, target), order = res.order, shown = 0;
+
+    function step(){
+      if (shown >= order.length){ finish(); return; }
+      var sq = order[shown], d = res.dist[sq], el = cells[sq];
+      el.classList.add('lit');
+      el.style.background = LEVELS[Math.min(d, LEVELS.length - 1)];
+      el.firstChild.textContent = d;
+      var light = LIGHT_BG[Math.min(d, LIGHT_BG.length - 1)];
+      el.firstChild.style.color = light ? '#141426' : '#fff';
+      el.firstChild.style.textShadow = light ? 'none' : '1px 1px 0 #000';
+      shown++;
+      elStep.textContent = d; elVis.textContent = shown;
+      timer = setTimeout(step, 70);
+    }
+
+    function finish(){
+      var path = res.path || shortestPath(res.parent, start, target);
+      path.forEach(function(i){ cells[i].classList.add('path'); });
+      board.classList.add('done');
+      elPath.textContent = (path.length - 1) + ' MOVES';
+      elPathTxt.textContent = path.map(coordOf).join(' \u2192 ');
+      setHint(OPTIMAL[selAlgo.value]
+        ? selAlgo.value + ' \u2014 shortest path (' + (path.length - 1) + ' moves).'
+        : selAlgo.value + ' \u2014 path found, not guaranteed shortest (' + (path.length - 1) + ' moves).');
+
+      knight.style.display = 'flex';
+      knight.style.transition = 'none';
+      placeKnight(path[0]);
+      void knight.offsetWidth;                       // reflow so hop 1 animates
+      knight.style.transition = '';
+      var k = 1;
+      (function hop(){
+        if (k >= path.length){ animating = false; btnRun.disabled = false; return; }
+        placeKnight(path[k++]);
+        timer = setTimeout(hop, 260);
+      })();
+    }
+
+    step();
+  }
+
+  // Runs every algorithm on the current pair and reports moves / squares expanded
+  // / average time. ponytail: 400 reps because a single run is sub-microsecond
+  // on 64 squares — raise N only if the board ever grows.
+  function compare(){
+    if (animating) return;
+    if (start < 0 || target < 0){ setHint('Pick START and TARGET first.'); return; }
+    var rows = [], best = Infinity, N = 400, i, name;
+    for (name in ALGOS){
+      var fn = ALGOS[name];
+      var r = fn(start, target);
+      var p = r.path || shortestPath(r.parent, start, target);
+      var t0 = performance.now();
+      for (i = 0; i < N; i++) fn(start, target);
+      var us = (performance.now() - t0) * 1000 / N;
+      var moves = p.length - 1;
+      if (moves < best) best = moves;
+      rows.push([name, moves, r.order.length, us]);
+    }
+    var html = '<table><tr><th>ALGO</th><th>MOVES</th><th>VISITED</th><th>\u00B5s</th></tr>';
+    var maxV = 0;
+    for (i = 0; i < rows.length; i++) if (rows[i][2] > maxV) maxV = rows[i][2];
+    for (i = 0; i < rows.length; i++){
+      var w = rows[i], win = w[1] === best;
+      html += '<tr><td>' + w[0] + '</td>' +
+              '<td class="' + (win ? 'opt' : '') + '">' + w[1] + (win ? ' \u2713' : '') + '</td>' +
+              '<td class="bar"><span style="width:' + Math.round(w[2] * 100 / maxV) +
+              '%"></span><b>' + w[2] + '</b></td>' +
+              '<td>' + w[3].toFixed(1) + '</td></tr>';
+    }
+    elCompare.innerHTML = html + '</table>';
+    setHint('Compared on ' + coordOf(start) + '\u2192' + coordOf(target) +
+            '. Green = tied for optimal.');
+  }
+
+  function randomSq(){ return Math.floor(Math.random() * 64); }
+
+  document.getElementById('btn-reset').addEventListener('click', reset);
+  document.getElementById('btn-random').addEventListener('click', function(){
+    if (animating) return;
+    reset();
+    start = randomSq(); do { target = randomSq(); } while (target === start);
+    pick(start, 'st'); cells[target].classList.add('tg');
+    btnRun.disabled = false;
+    setHint('Ready — press RUN.');
+  });
+  btnRun.addEventListener('click', run);
+  document.getElementById('btn-compare').addEventListener('click', compare);
+})();
+</script>
+</body>
+</html>
