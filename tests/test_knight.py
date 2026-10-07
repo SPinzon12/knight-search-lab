@@ -1,9 +1,9 @@
 """Property and boundary tests for the five knight searches.
 
-Zero dependencies — runs standalone:
-    python3 test_knight.py
+Zero dependencies — runs from the repo root:
+    python3 tests/test_knight.py
 and is pytest-compatible if pytest is ever installed:
-    python3 -m pytest test_knight.py
+    python3 -m pytest
 
 The oracle (exact distances) is an independent BFS written here on purpose:
 tests must not trust the code under test.
@@ -11,8 +11,12 @@ tests must not trust the code under test.
 
 import sys
 from collections import deque
+from pathlib import Path
 
-from knight_wave import ALGOS, MOVES, OPTIMAL, h_of, sq
+# Repo root on the path so the module imports without being installed.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from knight_wave import ALGOS, MOVES, OPTIMAL, h_of, sq  # noqa: E402
 
 # Independent reference: its own copy of the knight's eight jumps, so a typo in
 # the module's MOVES fails loudly instead of agreeing with itself.

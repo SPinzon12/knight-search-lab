@@ -4,9 +4,9 @@
 Reference implementation of five frontier-search algorithms on the 8x8 board,
 with a terminal wave animation and a comparison table.
 
-Deliberate mirror: index.html ports these same algorithms to JavaScript for the
-browser demo. Keep both in sync — the contract (dist, parent, order, path) is
-shared. Tests live in test_knight.py.
+Deliberate mirror: web/index.html ports these same algorithms to JavaScript for
+the browser demo. Keep both in sync — the contract (dist, parent, order, path)
+is shared. Tests live in tests/test_knight.py.
 
 Usage:
     python knight_wave.py                     # random start and target, BFS
@@ -15,7 +15,7 @@ Usage:
     python knight_wave.py a1 h8 --compare     # table + bars for every algorithm
     python knight_wave.py a1 h8 --fast        # no animation
     python knight_wave.py --check             # self-check
-    python3 test_knight.py                    # full suite (zero dependencies)
+    python3 tests/test_knight.py              # full suite (zero dependencies)
 """
 import random
 import sys

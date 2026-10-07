@@ -1,0 +1,20 @@
+[project]
+name = "knight-search-lab"
+version = "1.0.0"
+description = "Five frontier-search algorithms on an 8x8 board — browser demo, terminal reference, oracle-backed tests"
+readme = "README.md"
+requires-python = ">=3.9"
+# No runtime dependencies on purpose: both entry points run from source.
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["knight_wave"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
